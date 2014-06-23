@@ -4,221 +4,150 @@
 The Indonesian version of Go Fish is known as Omben in Javanese or Minuman in Indonesian, both names meaning "drink". It is said to be best for two players, each of whom begins with a hand of 4 or 5 cards (according to agreement) drawn from a 52 card pack. The players take turns to ask their opponent for a rank, such as 8 or king, and the opponent must give the asker all cards of that rank that he or she holds. If the opponent has no such card the asker must "drink" by drawing cards from the pile of undealt cards: the asker continues to draw until he or she finds a card of the rank that was asked for. Whenever a player has four of a kind in hand, it must be discarded face up. The winner is the first player to get rid of all their cards - it does not matter how many or few sets they have made. If the stock runs out, the player with fewer cards is the winner. Note that in this game the players ask alternately, irrespective of whether the card asked for is found in the other player's hand or the draw pile.
 */
 
+var debugMode = false;
 var handSize = 5;
 
+//==================================================
+// Game Class
+//==================================================
+
 function Game () {
+	this.round = 1;
+	this.deck;
+	this.player1;
+	this.player2;
+	this.currentPlayer;
+	this.otherPlayer;
+}
 
-	var debugMode = true;
-	var round = 0;
-	
-	var deck, player1, player2, currentPlayer, otherPlayer;
+Game.prototype = {
+	init: function() {
+		
+		var deck = this.deck;
+		var player1 = this.player1;
+		var player2 = this.player2;
+		var currentPlayer = this.currentPlayer;
+		var otherPlayer = this.otherPlayer;
 
-	this.init = function() {
-		console.log("Creating Deck");
+		console.log("STARTING GAME!");
 		deck = new Deck();
 		deck.init();
-		console.log("Deck contents: " + deck.printCardsIn(deck.cards));
 
-		console.log("Creating Player 1");
-		player1 = new Player(deck, prompt("Enter Player 1 name: "));
+		player1 = new Player(deck, "Rose");
+		player2 = new Player(deck, "The Doctor");
 		player1.init();
-		console.log(player1.name + "'s hand contains: " + deck.printCardsIn(player1.handCards));
-
-		console.log("Creating Player 2");
-		player2 = new Player(deck, prompt("Enter Player 2 name: "));
 		player2.init();
-		console.log(player1.name + "'s hand contains: " + deck.printCardsIn(player2.handCards));
 
-		console.log("Draw pile contents: " + deck.printCardsIn(deck.cards));
-	}
+		if (debugMode) {
+			console.log(" *debug: Deck contents: " + deck.printCardsIn(deck.cards,false));
+			console.log(" *debug: Draw pile contents: " + deck.printCardsIn(deck.cards,false));
+		}
 
-	this.playGame = function() {
+		console.log("Player 1 is: " + player1.name + "\n"+
+			player1.name + "'s hand contains: " + deck.printCardsIn(player1.handCards,true) + 
+			"\n\nPlayer 2 is: " + player2.name + "\n"+
+			player2.name + "'s hand contains: " + deck.printCardsIn(player2.handCards,true) +
+			"\n\nPlayer 1 goes first.\nROUND 1");
+
 		currentPlayer = player1;
 		otherPlayer = player2;
 
+
+		this.gameplayLoop(deck,currentPlayer,otherPlayer,player1,player2);
+	},
+
+	playerTurn: function (currentPlayer,otherPlayer) {
+		var randomCard = currentPlayer.chooseRandomCardFromPlayerHand();
+		currentPlayer.sayAskForCard(randomCard);
+
+		var cardsFound = otherPlayer.giveMatchingCards(randomCard.rank);
+
+		if (cardsFound.length > 0) {
+			//take from opponent
+			currentPlayer.takeCards(cardsFound,otherPlayer);
+		} else {
+			//draw from deck
+			currentPlayer.sayDrink(currentPlayer,otherPlayer,randomCard);
+			currentPlayer.drink(randomCard.rank);
+		}
+	},
+
+	//outside the while loop (game is over)
+	calculateAndPrintWinner: function (deck,player1,player2) {
+
+		console.log(player1.name + "'s hand history: " + player1.printHistory());
+		console.log(player2.name + "'s hand history: " + player2.printHistory());
+
+		var gameOverStr = "";
+			if (deck.cards.length == 0) { //game ended because deck ran out
+				gameOverStr += "Deck ran out! \n";
+				if (player1.handCards.length < player2.handCards.length) {
+					gameOverStr += player1.name + " WINS!";
+				} else if (player2.handCards.length < player1.handCards.length) {
+					gameOverStr += player2.name + " WINS!";
+				} else if (player1.handCards.length == player2.handCards.length) {
+					gameOverStr += "TIE! Everyone is a winner!";
+				} else {
+					gameOverStr += "ERROR!";
+				}
+			//game ended because a player reached 0 cards
+			} else if (player1.handCards.length == 0) {
+				gameOverStr += player1.name + " WINS!"; 
+			} else if (player2.handCards.length == 0) {
+				gameOverStr += player2.name + " WINS!";
+			}
+
+		console.log(gameOverStr + "\n" +
+			"Deck cards remaining: " + deck.cards.length + "\n" +
+			player1.name + " card total: " + player1.handCards.length + "\n" +
+			player2.name + " card total: " + player2.handCards.length);
+
+		
+	},
+
+	updateRoundAndHistory: function(currentPlayer,otherPlayer) {
+		this.round++;
+		currentPlayer.updateHistory(false, this.round);
+		otherPlayer.updateHistory(false, this.round);
+		console.log("ROUND " + this.round);
+	},
+
+	gameplayLoop: function(deck,currentPlayer,otherPlayer,player1,player2) {
+		//Main gameplay loop 
+		//Updates the round and alternates player turns until the while loop breaks and the winner is calculated
 		while (player1.handCards.length > 0 && player2.handCards.length > 0 && deck.cards.length > 0) {
+			this.playerTurn(currentPlayer,otherPlayer);
+			if (currentPlayer == player1) {
+				currentPlayer = player2;
+				otherPlayer = player1;
+			} else {
+				this.round++;
+				currentPlayer.updateHistory(false, this.round);
+				otherPlayer.updateHistory(false, this.round);
+				console.log("ROUND " + this.round);
+				currentPlayer = player1;
+				otherPlayer = player2;
+			}
+			currentPlayer.sayMyTurn();
 
-	
-				this.updateRoundAndHistory = function() {
-						round++;
-						currentPlayer.updateHistory("\n Round " + round + " card total:", currentPlayer.handCards.length);
-						otherPlayer.updateHistory("\n Round " + round + " card total:", otherPlayer.handCards.length);
-				}
-
-
-				this.chooseCardFromPlayerHand = function() {
-					var currentCard = currentPlayer.handCards[Math.floor(Math.random()*currentPlayer.handCards.length)];
-					var askStr = currentPlayer.name + ' asks, "Do you have any ' + currentCard.displayRank(currentCard.rank);
-					//determine if apostrophe should be used (because I am picky about grammar...)
-					if (currentCard.rank >= 10 || currentCard.rank == 1) {
-						askStr += "s?";
-					} else { //it's a number, use apostrophe
-						askStr += "'s?";
-					}
-					console.log(askStr);
-					return currentCard;
-				}
-				
-
-				this.compareCardRank = function(currentCard) { 
-					var matchedCardsStr = "";
-					var matchesFound = 0;
-					for (i = 0; i < otherPlayer.handCards.length; i ++) {
-						//compare against every card in otherPlayer's hand
-						if (currentCard.rank == otherPlayer.handCards[i].rank) {
-							matchedCardsStr += " [" + otherPlayer.handCards[i].displayCard() + "]";
-							currentPlayer.handCards.push(otherPlayer.handCards[i]);
-							otherPlayer.handCards.splice(i,1);
-							matchesFound ++;
-						}
-					}
-
-					if (matchesFound > 0 ) {
-						console.log(otherPlayer.name + ' replies, "Yes, take my:' + matchedCardsStr + '."');
-						console.log(currentPlayer.name + " acquires " + matchedCardsStr);
-						this.findSetOfFour(currentPlayer, currentCard);
-					} else {
-						var replyStr = otherPlayer.name + ' replies, "Nope, no '+ currentCard.displayRank(currentCard.rank);
-						//use apostrophe
-						if (currentCard.rank >= 10 || currentCard.rank == 1) {
-							replyStr += "s ";
-						} else { //it's a number, use apostrophe
-							replyStr += "'s ";
-						}
-
-						replyStr += "in my hand. DRINK!";
-						console.log(replyStr);
-						this.drink(currentPlayer, currentCard.rank);
-					}
-				}
-
-
-				this.drink = function(currentPlayer, rank) {
-					if (deck.cards.length > 0) {
-						console.log(currentPlayer.name + " drinks...");
-
-						for (i = 0; i < deck.cards.length; i ++) {
-							//draw a card from the face down deck and see if it makes a set of 4
-							var drewCard = deck.cards[0];
-							currentPlayer.handCards.push(deck.cards.shift());
-							console.log(currentPlayer.name + " drew this card from the pile: [" + drewCard.displayCard() + "]");
-							
-							if (rank == drewCard.rank) {
-								console.log(currentPlayer.name + " stops drawing cards. " + drewCard.displayCard() + "'s rank matches " + currentPlayer.name + "'s " + rank + ".");
-							}
-
-							this.findSetOfFour(currentPlayer, drewCard);
-
-							//if it matches the rank you're looking for, stop drawing
-							if (rank == drewCard.rank) {
-								break;
-							}
-						}
-					} else {
-						console.log("No cards to drink from! GAME OVER!");
-					}
-				}
-
-
-				this.findSetOfFour = function (currentPlayer, card) {
-						console.log("Checking for a set of four " + card.displayRank(card.rank) + "s in " + currentPlayer.name + "'s hand containing " + currentPlayer.handCards.length + " cards...");
-						var matchIndices = [];
-						
-						for (i = 0; i < currentPlayer.handCards.length; i ++) {
-							if (card.rank == currentPlayer.handCards[i].rank) {
-									console.log("  Match found! " + card.displayRank(card.rank) + " matches " + currentPlayer.handCards[i].displayCard());
-									matchIndices.push(i);
-							} else {
-									//console.log("DEBUG: currentPlayer.handCards" + "[" + i + "]: " + currentPlayer.handCards[i]);
-									console.log("  Not a match. " + card.displayRank(card.rank) + " does not match " + currentPlayer.handCards[i].displayCard());
-							}
-						}
-
-						if (matchIndices.length == 4) {
-							console.log("  Found a set of 4!! Removing four " + card.displayRank(card.rank) + "'s from " + currentPlayer.name + "'s hand...");
-							for (i = 0; i < matchIndices.length; i++) {
-								var removeIndex = matchIndices[i];
-								console.log("    Removing a " + currentPlayer.handCards[removeIndex - i].displayCard() + " from " + currentPlayer.name + "'s hand.");
-								currentPlayer.handCards.splice(removeIndex - i,1);
-							}
-							matchesFound = 0;
-							matchIndices = [];
-						} else {
-							console.log("  Did not find a set of four " + card.displayRank(card.rank) + "'s in " + currentPlayer.name + "'s hand.");
-						}
-				}
-
-
-				this.switchCurrentPlayer = function() {
-					if (currentPlayer == player1) {
-						currentPlayer = player2;
-						otherPlayer = player1;
-					} else {
-						currentPlayer = player1;
-						otherPlayer = player2;
-					}
-					console.log("Switching current player to " + currentPlayer.name);
-				}
-
-				this.playerTurn = function () {
-					this.compareCardRank(this.chooseCardFromPlayerHand());
-					this.switchCurrentPlayer();
-
-					if (currentPlayer == player1) {
-						this.updateRoundAndHistory();
-						console.log("ROUND " + round);
-					}
-				}
-
-				//while the while loop conditions are true, alternate players
-				this.playerTurn();	
 		}
-
-		//outside the while loop (game is over)
-		this.calculateAndPrintWinner = function() {
-			currentPlayer.updateHistory("\n Game end card total: ", currentPlayer.handCards.length);
-			otherPlayer.updateHistory("\n Game end card total: ", otherPlayer.handCards.length);
-
-			var gameOverStr = "";
-					if (deck.cards.length == 0) { //game ended because deck ran out
-						gameOverStr += "Deck ran out! \n";
-						if (player1.handCards.length < player2.handCards.length) {
-							gameOverStr += player1.name + " WINS!";
-						} else if (player2.handCards.length < player1.handCards.length) {
-							gameOverStr += player2.name + " WINS!";
-						} else if (player1.handCards.length == player2.handCards.length) {
-							gameOverStr += "TIE! Everyone is a winner!";
-						} else {
-							gameOverStr += "ERROR!";
-						}
-						//game ended because a player reached 0 cards
-					} else if (player1.handCards.length == 0) {
-						gameOverStr += player1.name + " WINS!"; 
-					} else if (player2.handCards.length == 0) {
-						gameOverStr += player2.name + " WINS!";
-					}
-
-					console.log(gameOverStr + "\n" +
-						"Deck cards remaining: " + deck.cards.length + "\n" +
-							player1.name + " card total: " + player1.handCards.length + "\n" +
-							player2.name + " card total: " + player2.handCards.length);
-
-					console.log(player1.name + "'s hand history: " + player1.printHistory());
-					console.log(player2.name + "'s hand history: " + player2.printHistory());
-		}
-
-
-		//the while loop has broken
-		this.calculateAndPrintWinner();
-	}
+		currentPlayer.updateHistory(true, 0);
+		otherPlayer.updateHistory(true, 0);
+		this.calculateAndPrintWinner(deck,player1,player2);
+	},
 }
+
+//==================================================
+// Deck Class
+//==================================================
 
 function Deck () {
 	this.cards = [];
+}
 
-	this.init = function() {
+Deck.prototype = {
+	init: function() {
 		var card = new Card();
-
 		for (i = 0; i < card.validSuits.length; i++) {
 			for (j = 1; j <= card.validRanks; j++) {
 				var gameCard = new Card(card.validSuits[i],j);
@@ -226,40 +155,50 @@ function Deck () {
 			}
 		}
 		this.shuffleDeck(this.cards);
-	}
+	},
 
-	this.shuffleDeck = function(array) {
-	    for (var i = array.length - 1; i > 0; i--) {
-	        var j = Math.floor(Math.random() * (i + 1));
-	        var temp = array[i];
-	        array[i] = array[j];
-	        array[j] = temp;
-	    }
-  		return array;
-	}
+	shuffleDeck: function(array) {
+    for (var i = array.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var temp = array[i];
+        array[i] = array[j];
+        array[j] = temp;
+    }
+	return array;
+	},
 
-	this.printCardsIn = function(array) {
+	printCardsIn: function(array, isPretty) {
 		var deckStr = "\n";
 		for (i = 0; i < array.length; i ++) {
-			deckStr += "Index " + i + " contains: " + array[i].displayCard() + "\n";
+			if (isPretty == false) { //print debug
+				deckStr += "Index " + i + " contains: " + array[i].displayCard() + "\n";
+			} else {
+				deckStr += "[" + array[i].displayCard() + "] ";
+			} 
 		}
 		return deckStr;
-	}
+	},
 }
+
+//==================================================
+// Card Class
+//==================================================
 
 function Card (suit,rank) {
 	this.validSuits = ["Hearts", "Spades", "Clubs", "Diamonds"];
 	this.validRanks = 13;
 	this.suit = suit;
 	this.rank = rank;
-	
-	this.displayCard = function() {
+}
+
+Card.prototype = {
+	displayCard: function() {
 		var cardStr = "";
 		cardStr += this.displayRank();
 		return cardStr + " of " + this.suit;
-	}
+	},
 
-	this.displayRank = function () {
+	displayRank: function() {
 		var rankStr = "";
 		switch (this.rank) {
 			case 1:
@@ -278,41 +217,180 @@ function Card (suit,rank) {
 				rankStr = this.rank;
 		}
 		return rankStr;
-	}
+	},
 }
+
+//==================================================
+// Player Class
+//==================================================
 
 function Player (deck, name) {
 	this.handCards = [];
 	this.deck = deck;
 	this.name = name;
 	this.history = [];
+}
 
-	this.init = function() {
-		for (i = 0; i < handSize; i ++ ) {
-			this.handCards[i] = deck.cards.shift();
+
+Player.prototype = {
+	constructor: Player,
+
+	init: function() {
+		for (var i = 0; i < handSize; i ++ ) {
+			this.handCards[i] = this.deck.cards.shift();
 		}
 		this.history.push("\nStarting card total: " + i);
-		deck.printCardsIn(this.handCards);
-	}
+		this.sayMyHandContents();
+	},
 
-	this.updateHistory = function(text, currentNumCardsInHand) {
-		this.history.push(text + currentNumCardsInHand);
-	}
+	sayMyTurn: function() {
+		console.log(this.name + "'s turn!");
+	},
 
-	this.printHistory = function() {
-			var historyStr = "";
-			for (i = 0; i < this.history.length; i++) {
-				historyStr += this.history[i] + " ";
-			}
-			return historyStr;
+	sayMyHandContents: function() {
+		if (debugMode) {
+			console.log(" *debug: " + this.name + "'s hand now contains: " + this.deck.printCardsIn(this.handCards,false));
 		}
+	},
+
+	sayAskForCard: function(currentCard) {
+		var askStr = this.name + ' asks, "Do you have any ' + currentCard.displayRank(currentCard.rank);
+			if (currentCard.rank >= 10 || currentCard.rank == 1) {
+				askStr += "s?";
+			} else { //it's a number, use apostrophe
+				askStr += "'s?";
+			}
+		console.log(askStr);
+	},
+
+	sayDrink: function(currentPlayer,otherPlayer,card) {
+		var replyStr = otherPlayer.name + ' replies, "Nope, no '+ card.displayRank(card.rank);
+ 			//use apostrophe
+			if (card.rank >= 10 || card.rank == 1) {
+				replyStr += "s ";
+			} else { //it's a number, use apostrophe
+				replyStr += "'s ";
+			}
+		replyStr += "in my hand. DRINK!";
+		console.log(replyStr);
+	},
+
+	updateHistory: function(isGameOver, round) {
+		var textStr = "";
+		if (isGameOver) {
+			textStr = "\n Game end card total: ";
+		} else {
+			textStr = "\n Round " + round + " card total:";
+		}
+		this.history.push(textStr + this.handCards.length);
+	},
+
+	printHistory: function() {
+		var historyStr = "";
+		for (i = 0; i < this.history.length; i++) {
+			historyStr += this.history[i] + " ";
+		}
+		return historyStr;
+	},
+
+	chooseRandomCardFromPlayerHand: function() {
+		var currentCard = this.handCards[Math.floor(Math.random()*this.handCards.length)];
+		return currentCard;
+	},
+
+	giveMatchingCards: function(rank) {
+		var matchingOpponentCards = [];
+		for (i = 0; i < this.handCards.length; i ++) {
+			if (rank == this.handCards[i].rank) {
+				if (debugMode) { console.log(" *debug: this.handCards[i]" + this.handCards[i].displayCard()); }
+				matchingOpponentCards.push(this.handCards.splice(i,1)[0]);
+			}
+		}
+		return matchingOpponentCards; //pass back an array full of matching cards
+	},
+
+	findSetOfFour: function (card) {
+		console.log("  Checking for a set of four " + card.displayRank(card.rank) + "s in " + this.name + "'s hand containing " + this.handCards.length + " cards...");
+		var matchIndices = [];
+		
+		for (i = 0; i < this.handCards.length; i ++) {
+			if (card.rank == this.handCards[i].rank) {
+				matchIndices.push(i);
+				console.log("    Match found! " + card.displayRank(card.rank) + " matches " + this.handCards[i].displayCard() + ". Total matches so far: " + matchIndices.length);
+			} else {
+				if (debugMode) {
+					console.log("    Not a match. " + card.displayRank(card.rank) + " does not match " + this.handCards[i].displayCard());
+				}
+			}
+		}
+
+		if (matchIndices.length == 4) {
+			console.log("  Found a set of 4!! Removing four " + card.displayRank(card.rank) + "'s from " + this.name + "'s hand...");
+			for (i = 0; i < matchIndices.length; i++) {
+				var removeIndex = matchIndices[i];
+				console.log("    Removing a " + this.handCards[removeIndex - i].displayCard() + " from " + this.name + "'s hand.");
+				this.handCards.splice(removeIndex - i,1);
+			}
+			matchesFound = 0;
+			matchIndices = [];
+		} else {
+			console.log("  Did not find a set of four " + card.displayRank(card.rank) + "'s in " + this.name + "'s hand.");
+		}
+	},
+
+	takeCards: function(cards,otherPlayer) {
+		//create the console.log string
+		var matchedCardsStr = "";
+		for (var i = 0; i < cards.length; i ++ ) {
+			matchedCardsStr += " [" + cards[i].displayCard() + "]";
+		}
+
+		console.log(otherPlayer.name + ' replies, "Yes, take my:' + matchedCardsStr + '."');
+	 	console.log(this.name + " acquires " + matchedCardsStr + " and checks own hand to see if a set is made...");
+	 	
+	 	//push from cards array to player hand and check for sets of four
+	 	for (var i = 0; i < cards.length; i ++) {
+			this.handCards.push(cards[i]);
+			this.findSetOfFour(cards[i]);
+		}
+
+		this.sayMyHandContents();
+	 	
+	},
+
+
+	drink: function(rank) {
+		if (this.deck.cards.length > 0) {
+			console.log(this.name + " drinks...");
+
+			for (i = 0; i < this.deck.cards.length; i ++) {
+				//draw a card from the face down deck and see if it makes a set of 4
+				var drewCard = this.deck.cards[0];
+				this.handCards.push(this.deck.cards.shift());
+				console.log(this.name + " drew this card from the pile: [" + drewCard.displayCard() + "]");
+				
+				if (rank == drewCard.rank) {
+					console.log(this.name + " stops drawing cards. " + drewCard.displayCard() + "'s rank matches " + this.name + "'s " + rank + ".");
+				}
+
+				this.findSetOfFour(drewCard);
+				
+				if (rank == drewCard.rank) { ///if it matches the rank you're looking for, stop drawing
+					break;
+				}
+			}
+		} else {
+			console.log("No cards to drink from! GAME OVER!");
+		}
+	},
 }
+
+//==================================================
+// Start the game
+//==================================================
 
 game = new Game();
 game.init();
-game.playGame();
-
-
 //Resources used
 //Fisher Yates randomizer found: http://stackoverflow.com/questions/2450954/how-to-randomize-shuffle-a-javascript-array
 
